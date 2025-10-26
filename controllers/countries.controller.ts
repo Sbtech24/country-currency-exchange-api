@@ -214,10 +214,10 @@ export async function getStatus(
 
     const { total_countries, last_refreshed_at } = result.rows[0];
     return res.status(200).json({
-      data: {
+     
         totalCountries: Number(total_countries),
         lastRefreshedAt: last_refreshed_at,
-      },
+ 
     });
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
