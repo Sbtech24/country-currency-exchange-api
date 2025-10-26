@@ -3,10 +3,11 @@ import { getAllCountries, refreshData,getAllCountryByName, deleteCountryByName, 
 
 const router = express.Router()
 
+
 router.get("/countries", getAllCountries)
 router.post("/countries/refresh", refreshData)
 
-router.get("/countries/status", getStatus)
+router.get("/status", getStatus)
 router.get("/countries/image",generateSummaryImage)
 
 
