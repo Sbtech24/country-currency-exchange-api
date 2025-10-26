@@ -5,7 +5,6 @@
   "private": true,
   "scripts": {
     "dev": "bun --watch index.js",
-    "build": "bun run index.js",
     "start": "bun run index.js"
   },
   "devDependencies": {
