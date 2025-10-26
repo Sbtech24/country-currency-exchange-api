@@ -49,7 +49,7 @@ export function buildCountryExchangeData( countries: Country[], exchangeData: Ex
 
     const rate = exchangeData.rates[code] ?? 0 ;
 
-    const random = Math.floor(Math.random() * 1000)
+    const random = Math.floor(Math.random() * (2000 - 1000 + 1)) + 1000;
     const estimated_gdp = country.population * random / rate
     return {
       name: country.name,
