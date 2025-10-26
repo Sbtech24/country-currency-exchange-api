@@ -5,11 +5,7 @@ import fs from "fs";
 import pool from "../config/db";
 import path from "path";
 
-export async function refreshData(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
+export async function refreshData(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await fetchData();
 
@@ -37,50 +33,62 @@ export async function refreshData(
       RETURNING *;
     `;
 
-    const createdCountries = [];
     const lastRefreshedAt = new Date().toISOString();
 
-    for (const c of data) {
-      try {
-        const errors: Record<string, string> = {};
-        if (!c.name) errors.name = "is required";
-        if (!c.population) errors.population = "is required";
-        if (!c.currency_code) errors.currency_code = "is required";
+    // ✅ Use Promise.all to run inserts in parallel
+    const createdCountries = await Promise.all(
+      data.map(async (c) => {
+        try {
+          // Validation
+          const errors: Record<string, string> = {};
+          if (!c.name) errors.name = "is required";
+          if (!c.population) errors.population = "is required";
+          if (!c.currency_code) errors.currency_code = "is required";
 
-        if (Object.keys(errors).length > 0) {
-          return res.status(400).json({
-            error: "Validation failed",
-            details: errors,
-          });
+          if (Object.keys(errors).length > 0) {
+            console.warn(`Skipping invalid country: ${c.name || "unknown"}`, errors);
+            return null;
+          }
+
+          // ✅ Compute GDP dynamically
+          const randomMultiplier = Math.floor(Math.random() * (2000 - 1000 + 1)) + 1000;
+          const estimated_gdp = c.exchange_rate
+            ? (c.population * randomMultiplier) / c.exchange_rate
+            : null;
+
+          const result = await pool.query(query, [
+            c.name,
+            c.capital || null,
+            c.region ? c.region.charAt(0).toUpperCase() + c.region.slice(1).toLowerCase() : null,
+            c.population,
+            c.currency_code ? c.currency_code.toUpperCase() : null,
+            c.exchange_rate || null,
+            estimated_gdp,
+            c.flag_url || null,
+            lastRefreshedAt,
+          ]);
+          return result.rows[0];
+        } catch (dbErr) {
+          console.error("Database insert error for:", c.name, dbErr);
+          return null;
         }
-        const result = await pool.query(query, [
-          c.name,
-          c.capital || null,
-          c.region || null,
-          c.population,
-          c.currency_code || null,
-          c.exchange_rate || null,
-          c.estimated_gdp || 0,
-          c.flag_url || null,
-          lastRefreshedAt,
-        ]);
-        createdCountries.push(result.rows[0]);
-      } catch (dbErr) {
-        console.error("Database insert error for:", dbErr);
-      }
-    }
+      })
+    );
 
-    // ✅ Generate summary image after updating DB
+    // ✅ Filter out null results
+    const successfulCountries = createdCountries.filter(Boolean);
+
+    // ✅ Generate summary image after DB updates
     await generateSummaryImageFile(lastRefreshedAt);
 
     return res.status(200).json({
       message: "Countries refreshed successfully",
-      total: createdCountries.length,
+      total: successfulCountries.length,
       last_refreshed_at: lastRefreshedAt,
     });
   } catch (err: any) {
     console.error("Refresh failed:", err);
-    if (err.message.includes("fetch failed")) {
+    if (err.message?.includes("fetch failed")) {
       return res.status(503).json({
         error: "External data source unavailable",
         details: "Could not fetch data from one or more APIs",
